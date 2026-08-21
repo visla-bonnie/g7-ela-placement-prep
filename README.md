@@ -1,27 +1,38 @@
-# G7 ELA Placement Prep
+# G7 ELA Placement Prep V4 — Unified Practice
 
-A GitHub Pages-ready Grade 6 → Grade 7 English Language Arts placement-prep app.
+This release fixes the practice model across the whole app, not only Grammar.
 
-## Includes
-- Dashboard and readiness score
-- Reading Lab with complete original passages
-- Grammar Lab preserving the original core topics
-- Vocabulary in context
-- Writing & Editing
-- Visible Question Bank
-- Randomized 24-question diagnostic tests
-- Mistake Book with your answer, correct answer, explanation, strategy, retry, and mastery
-- Weak-area analysis and targeted practice
-- English-only full mock exams
-- Bilingual / English / Chinese modes
-- Local progress storage and offline caching
+## One rule everywhere
 
-## Publish
-1. Create a new GitHub repository named `g7-ela-placement-prep`.
-2. Upload **all contents inside this folder**, including the `data` folder.
-3. Commit the changes.
-4. Settings → Pages → Deploy from a branch → `main` → `/(root)` → Save.
-5. Your public URL will be:
-   `https://YOUR-USERNAME.github.io/g7-ela-placement-prep/`
+Whenever a detailed skill says `N Q`, clicking it now means:
+- complete all N questions in that skill;
+- one question at a time;
+- immediate correct/wrong feedback;
+- full explanation and strategy;
+- progress is saved;
+- wrong answers go to Mistake Book;
+- final topic score is shown;
+- retry can shuffle the complete topic set.
 
-If an old version appears after an update, press Ctrl+F5 because the app uses an offline cache.
+## Reading
+Focused Reading practice also shows the source passage for each question, so passage-based questions are never presented without context.
+
+## Grammar
+Keeps the complete sequential topic practice added in V3.
+
+## Vocabulary and Writing
+Skill buttons now practice the exact full category count. The normal page also keeps a clearly labeled 12-question Mixed Quick Practice.
+
+## Other systems
+Question Bank, Diagnostic, Mistake Book, Weak Areas, and Mock Exam remain intact.
+
+## GitHub update
+Overwrite:
+- index.html
+- app.js
+- styles.css
+- sw.js
+
+Keep the existing `data/` folder unchanged.
+
+After deployment press Ctrl+F5 once.
