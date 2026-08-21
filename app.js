@@ -33,9 +33,178 @@ const DETAIL_SKILLS={
 function skillText(x){return state.lang==='english'?x[1]:state.lang==='chinese'?x[2]:x[1]+' / '+x[2]}
 function readingSkillMatch(q,key){const t=(q.en||'').toLowerCase();return key==='main'?/central idea|main idea/.test(t):key==='inference'?/infer|inference/.test(t):key==='evidence'?/detail|support|evidence/.test(t):key==='theme'?/theme|lesson/.test(t):key==='pov'?/point of view|narrator/.test(t):key==='purpose'?/author|purpose/.test(t):key==='context'?/most nearly mean|what does|means:/.test(t):key==='structure'?/structure|sequence|contribute/.test(t):false}
 function skillPool(area,key){if(area==='grammar')return GRAMMAR_QUESTIONS.filter(q=>q.topic===key);if(area==='vocabulary')return VOCAB_QUESTIONS.filter(q=>q.topic===key);if(area==='writing')return WRITING_QUESTIONS.filter(q=>q.topic===key);if(area==='reading')return readingQs().filter(q=>readingSkillMatch(q,key));return[]}
-function renderSkillMap(){const el=document.getElementById('skillMap');if(!el)return;const icons={reading:'📖',grammar:'🔤',vocabulary:'🧠',writing:'✍️'};el.innerHTML=Object.entries(DETAIL_SKILLS).map(([area,skills])=>`<section class="skill-group"><h4>${icons[area]} ${area[0].toUpperCase()+area.slice(1)}</h4><div class="skill-list">${skills.map(x=>`<button onclick="openDetailSkill('${area}','${x[0]}')"><b>${skillText(x)}</b><small>${skillPool(area,x[0]).length} questions / 题</small></button>`).join('')}</div></section>`).join('')}
-function renderSubskillBrowsers(){[['reading','readingSkillBrowser'],['grammar','grammarSkillBrowser'],['vocabulary','vocabSkillBrowser'],['writing','writingSkillBrowser']].forEach(([area,id])=>{const el=document.getElementById(id);if(el)el.innerHTML=DETAIL_SKILLS[area].map(x=>`<button onclick="openDetailSkill('${area}','${x[0]}')"><span>${skillText(x)}</span><small>${skillPool(area,x[0]).length} Q</small></button>`).join('')})}
-window.openDetailSkill=function(area,key){if(area==='grammar'){activeGrammar=key;showPage('grammar');renderGrammar();return}const qs=shuffle(skillPool(area,key)).slice(0,15);state.bank=qs;showPage('bank');document.getElementById('bankWorkspace').innerHTML=`<div class="practice-box"><h3>${skillText(DETAIL_SKILLS[area].find(x=>x[0]===key))}</h3><p>${loc('Focused practice for this skill.','这个知识点的专项练习。')}</p><div id="bankSet"></div><button class="primary" onclick="submitBank()">Submit / 提交</button><div id="bankResult"></div></div>`;renderSet('bankSet',qs)};
+function renderSkillMap(){
+  const el=document.getElementById('skillMap');
+  if(!el)return;
+  const icons={reading:'📖',grammar:'🔤',vocabulary:'🧠',writing:'✍️'};
+  el.innerHTML=Object.entries(DETAIL_SKILLS).map(([area,skills])=>`<section class="skill-group">
+    <h4>${icons[area]} ${area[0].toUpperCase()+area.slice(1)}</h4>
+    <div class="skill-list">
+      ${skills.map(x=>{
+        const n=skillPool(area,x[0]).length;
+        return `<button ${n===0?'disabled':''} onclick="openDetailSkill('${area}','${x[0]}')">
+          <b>${skillText(x)}</b>
+          <small>${n} Q · ${loc('complete all','全部完成')}</small>
+        </button>`;
+      }).join('')}
+    </div>
+  </section>`).join('');
+}
+function renderSubskillBrowsers(){
+  [['reading','readingSkillBrowser'],['grammar','grammarSkillBrowser'],['vocabulary','vocabSkillBrowser'],['writing','writingSkillBrowser']].forEach(([area,id])=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    el.innerHTML=DETAIL_SKILLS[area].map(x=>{
+      const n=skillPool(area,x[0]).length;
+      return `<button ${n===0?'disabled':''} onclick="openDetailSkill('${area}','${x[0]}')">
+        <span>${skillText(x)}</span>
+        <small>${n} Q · ${loc('Practice all','全部练习')}</small>
+      </button>`;
+    }).join('');
+  });
+}
+const focusedPractice={area:null,key:null,questions:[],index:0,score:0,answered:false};
+
+function passageForQuestion(qid){
+  return READING_PASSAGES.find(p=>p.questions.some(q=>q.id===qid)) || null;
+}
+
+function resetFocusedPractice(area,key,shuffleOrder=false){
+  const pool=skillPool(area,key);
+  focusedPractice.area=area;
+  focusedPractice.key=key;
+  focusedPractice.questions=shuffleOrder?shuffle(pool):[...pool];
+  focusedPractice.index=0;
+  focusedPractice.score=0;
+  focusedPractice.answered=false;
+}
+
+function focusedWorkspaceId(area){
+  return area==='reading'?'readingWorkspace':area==='vocabulary'?'vocabWorkspace':'writingWorkspace';
+}
+
+function renderFocusedPractice(){
+  const {area,key,questions,index,score}=focusedPractice;
+  if(!area||area==='grammar') return;
+  const workspace=document.getElementById(focusedWorkspaceId(area));
+  if(!workspace) return;
+
+  const detail=DETAIL_SKILLS[area].find(x=>x[0]===key);
+  const total=questions.length;
+
+  if(!total){
+    workspace.innerHTML=`<div class="empty"><h3>${skillText(detail)}</h3><p>${loc('No questions are available for this skill yet.','这个知识点目前还没有题目。')}</p></div>`;
+    return;
+  }
+
+  const q=questions[index];
+  const progress=Math.round(((index+(focusedPractice.answered?1:0))/total)*100);
+  let passageHtml='';
+
+  if(area==='reading'){
+    const p=passageForQuestion(q.id);
+    if(p){
+      passageHtml=`<article class="focused-passage">
+        <span class="tag">${p.genre}</span><span class="tag">Grade ${p.grade}</span>
+        <h3>${p.title}</h3>
+        <div class="passage-text">${p.text.split('\n\n').map(x=>`<p>${x}</p>`).join('')}</div>
+      </article>`;
+    }
+  }
+
+  workspace.innerHTML=`<div class="focused-practice">
+    <div class="focused-head">
+      <div>
+        <span class="eyebrow">${area.toUpperCase()} • FOCUSED PRACTICE</span>
+        <h3>${skillText(detail)}</h3>
+        <p>${loc(`Complete all ${total} questions shown for this skill.`,`这个知识点显示 ${total} 题，就完整做完这 ${total} 题。`)}</p>
+      </div>
+      <div class="focused-counter"><strong>${index+1}</strong><span>/ ${total}</span></div>
+    </div>
+
+    <div class="focused-progress"><i><b style="width:${progress}%"></b></i></div>
+
+    ${passageHtml}
+
+    <article class="focused-question-card">
+      <h4>${loc(q.en,q.zh)}</h4>
+      <div class="focused-options">
+        ${q.options.map((o,i)=>`<button class="option" onclick="answerFocusedQuestion('${q.id}',${i},this)">${String.fromCharCode(65+i)}. ${o}</button>`).join('')}
+      </div>
+      <div id="focusedFeedback"></div>
+      <button id="focusedNext" class="primary hidden" onclick="nextFocusedQuestion()">${index===total-1?loc('Finish Skill','完成专题'):loc('Next Question','下一题')}</button>
+    </article>
+  </div>`;
+  applyLang();
+}
+
+window.answerFocusedQuestion=function(id,i,btn){
+  if(focusedPractice.answered) return;
+  const q=getQ(id);
+  if(!q) return;
+
+  focusedPractice.answered=true;
+  const card=btn.closest('.focused-question-card');
+  card.querySelectorAll('.option').forEach(b=>b.disabled=true);
+
+  const correct=i===q.answer;
+  btn.classList.add(correct?'correct':'wrong');
+  if(correct) focusedPractice.score++;
+
+  recordProgress(q,correct);
+  if(!correct){
+    card.querySelectorAll('.option')[q.answer].classList.add('correct');
+    saveMistake(q,i);
+  }
+
+  document.getElementById('focusedFeedback').innerHTML=`<div class="feedback">${explain(q,i)}</div>`;
+  document.getElementById('focusedNext').classList.remove('hidden');
+  updateStats();
+};
+
+window.nextFocusedQuestion=function(){
+  const total=focusedPractice.questions.length;
+  if(focusedPractice.index<total-1){
+    focusedPractice.index++;
+    focusedPractice.answered=false;
+    renderFocusedPractice();
+    const el=document.querySelector('.focused-practice');
+    if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+    return;
+  }
+
+  const pct=total?Math.round(focusedPractice.score/total*100):0;
+  const workspace=document.getElementById(focusedWorkspaceId(focusedPractice.area));
+  workspace.innerHTML=`<div class="topic-complete">
+    <div class="score-circle"><strong>${focusedPractice.score}/${total}</strong><span>${pct}%</span></div>
+    <div>
+      <h3>${pct>=90?loc('Excellent! Skill mastered.','非常好！这个知识点掌握得很稳。'):pct>=70?loc('Good work. Review your misses.','做得不错，复习一下错题。'):loc('This skill needs more practice.','这个知识点还需要继续练习。')}</h3>
+      <p>${loc(`You completed all ${total} questions in this skill.`,`你已经完成这个知识点的全部 ${total} 道题。`)}</p>
+      <div class="result-actions">
+        <button class="primary" onclick="restartFocusedPractice(true)">${loc('Practice Again (Shuffled)','重新练习（随机顺序）')}</button>
+        <button class="secondary" onclick="showPage('mistakes')">${loc('Review Mistakes','查看错题')}</button>
+      </div>
+    </div>
+  </div>`;
+  updateStats();
+};
+
+window.restartFocusedPractice=function(shuffleOrder=true){
+  resetFocusedPractice(focusedPractice.area,focusedPractice.key,shuffleOrder);
+  renderFocusedPractice();
+};
+
+window.openDetailSkill=function(area,key){
+  if(area==='grammar'){
+    showPage('grammar');
+    selectGrammarTopic(key);
+    return;
+  }
+
+  showPage(area);
+  resetFocusedPractice(area,key,false);
+  renderFocusedPractice();
+};
 
 function getQ(id){return allQs().find(q=>q.id===id)}
 function ensureProgress(){
@@ -121,8 +290,106 @@ function updateStats(){
     });
   }
 }function renderDashboard(){const areas=[['📖','Reading Lab','阅读理解','Main idea, inference, evidence, theme, point of view.'],['🔤','Grammar Lab','语法训练','Sentence parts, clauses, tenses, agreement, modifiers.'],['🧠','Vocabulary','词汇训练','Context clues, roots, connotation, academic vocabulary.'],['✍️','Writing & Editing','写作修改','Revision, transitions, evidence, organization, editing.']];document.getElementById('areaGrid').innerHTML=areas.map((a,i)=>`<article onclick="showPage('${['reading','grammar','vocabulary','writing'][i]}')">${a[0]}<h4>${loc(a[1],a[2])}</h4><p>${a[3]}</p></article>`).join('')}
-let activeGrammar='sentence_parts';function renderGrammar(){document.getElementById('grammarTabs').innerHTML=GRAMMAR_TOPICS.map(t=>`<button class="${t.id===activeGrammar?'active':''}" onclick="activeGrammar='${t.id}';renderGrammar()">${t.en} / ${t.zh}</button>`).join('');const t=GRAMMAR_TOPICS.find(x=>x.id===activeGrammar),q=GRAMMAR_QUESTIONS.find(x=>x.topic===activeGrammar);document.getElementById('grammarWorkspace').innerHTML=`<article class="lesson"><h3>${loc(t.en,t.zh)}</h3><div class="bilingual"><div class="lang-panel" data-en-only><b>Definition & Rule</b><p>${t.ruleEn}</p></div><div class="lang-panel" data-zh-only><b>定义与规则</b><p>${t.ruleZh}</p></div></div><div class="example">${t.example}<br><small>${t.focus}</small></div><h4>${loc('Quick Check','快速练习')}</h4><p>${loc(q.en,q.zh)}</p>${q.options.map((o,i)=>`<button class="option" onclick="checkQuick('${q.id}',${i},this)">${String.fromCharCode(65+i)}. ${o}</button>`).join('')}<div id="quickFb"></div></article>`;applyLang()}
-window.activeGrammar=activeGrammar;window.renderGrammar=renderGrammar;window.checkQuick=(id,i,btn)=>{const q=getQ(id),box=btn.parentElement;box.querySelectorAll('.option').forEach(b=>b.disabled=true);btn.classList.add(i===q.answer?'correct':'wrong');recordProgress(q,i===q.answer);if(i!==q.answer){box.querySelectorAll('.option')[q.answer].classList.add('correct');saveMistake(q,i)}document.getElementById('quickFb').innerHTML=`<div class="feedback">${explain(q,i)}</div>`;updateStats()};
+let activeGrammar='sentence_parts';
+let grammarPracticeOrder=[];
+let grammarPracticeIndex=0;
+let grammarPracticeScore=0;
+let grammarPracticeAnswered=false;
+
+function grammarTopicQuestions(topic){
+  return GRAMMAR_QUESTIONS.filter(q=>q.topic===topic);
+}
+
+function resetGrammarPractice(shuffleOrder=false){
+  const qs=grammarTopicQuestions(activeGrammar);
+  grammarPracticeOrder=shuffleOrder?shuffle(qs):[...qs];
+  grammarPracticeIndex=0;
+  grammarPracticeScore=0;
+  grammarPracticeAnswered=false;
+}
+
+function renderGrammar(){
+  document.getElementById('grammarTabs').innerHTML=GRAMMAR_TOPICS.map(t=>{
+    const count=grammarTopicQuestions(t.id).length;
+    return `<button class="${t.id===activeGrammar?'active':''}" onclick="selectGrammarTopic('${t.id}')">${t.en} / ${t.zh}<small>${count} Q</small></button>`;
+  }).join('');
+
+  const t=GRAMMAR_TOPICS.find(x=>x.id===activeGrammar);
+  if(!grammarPracticeOrder.length || !grammarPracticeOrder.every(q=>q.topic===activeGrammar)) resetGrammarPractice(false);
+  const total=grammarPracticeOrder.length;
+  const q=grammarPracticeOrder[grammarPracticeIndex];
+
+  const practiceHtml=total?`<div class="grammar-practice-card">
+    <div class="grammar-practice-head">
+      <div><b>${loc('Topic Practice','专题练习')}</b><span>${grammarPracticeIndex+1} / ${total}</span></div>
+      <div class="grammar-mini-progress"><i><b style="width:${((grammarPracticeIndex+(grammarPracticeAnswered?1:0))/total)*100}%"></b></i></div>
+    </div>
+    <p class="grammar-question">${loc(q.en,q.zh)}</p>
+    <div class="grammar-options">${q.options.map((o,i)=>`<button class="option" data-idx="${i}" onclick="answerGrammarQuestion('${q.id}',${i},this)">${String.fromCharCode(65+i)}. ${o}</button>`).join('')}</div>
+    <div id="quickFb"></div>
+    <div class="grammar-practice-actions">
+      <button id="grammarNextBtn" class="primary hidden" onclick="nextGrammarQuestion()">${grammarPracticeIndex===total-1?loc('Finish Topic','完成专题'):loc('Next Question','下一题')}</button>
+    </div>
+  </div>`:`<div class="empty">${loc('No questions yet.','这个专题暂时没有题目。')}</div>`;
+
+  document.getElementById('grammarWorkspace').innerHTML=`<article class="lesson">
+    <h3>${loc(t.en,t.zh)}</h3>
+    <div class="bilingual"><div class="lang-panel" data-en-only><b>Definition & Rule</b><p>${t.ruleEn}</p></div><div class="lang-panel" data-zh-only><b>定义与规则</b><p>${t.ruleZh}</p></div></div>
+    <div class="example">${t.example}<br><small>${t.focus}</small></div>
+    ${practiceHtml}
+  </article>`;
+  applyLang();
+}
+
+window.selectGrammarTopic=function(id){
+  activeGrammar=id;
+  window.activeGrammar=id;
+  resetGrammarPractice(false);
+  renderGrammar();
+};
+window.activeGrammar=activeGrammar;
+window.renderGrammar=renderGrammar;
+
+window.answerGrammarQuestion=function(id,i,btn){
+  if(grammarPracticeAnswered) return;
+  const q=getQ(id),box=btn.closest('.grammar-practice-card');
+  grammarPracticeAnswered=true;
+  box.querySelectorAll('.option').forEach(b=>b.disabled=true);
+  const correct=i===q.answer;
+  btn.classList.add(correct?'correct':'wrong');
+  if(correct) grammarPracticeScore++;
+  recordProgress(q,correct);
+  if(!correct){
+    box.querySelectorAll('.option')[q.answer].classList.add('correct');
+    saveMistake(q,i);
+  }
+  document.getElementById('quickFb').innerHTML=`<div class="feedback">${explain(q,i)}</div>`;
+  const next=document.getElementById('grammarNextBtn');
+  if(next) next.classList.remove('hidden');
+  updateStats();
+};
+
+window.nextGrammarQuestion=function(){
+  const total=grammarPracticeOrder.length;
+  if(grammarPracticeIndex<total-1){
+    grammarPracticeIndex++;
+    grammarPracticeAnswered=false;
+    renderGrammar();
+    const card=document.querySelector('.grammar-practice-card');
+    if(card) card.scrollIntoView({behavior:'smooth',block:'center'});
+    return;
+  }
+  const pct=total?Math.round(grammarPracticeScore/total*100):0;
+  document.querySelector('.grammar-practice-card').innerHTML=`<div class="grammar-topic-result">
+    <div class="score-circle"><strong>${grammarPracticeScore}/${total}</strong><span>${pct}%</span></div>
+    <div><h3>${pct>=90?loc('Excellent! Topic mastered.','非常好！这个专题掌握得很稳。'):pct>=70?loc('Good work. Review the missed questions.','做得不错，重点复习错题。'):loc('This topic needs more practice.','这个专题还需要继续练习。')}</h3>
+    <p>${loc('All questions in this topic are complete.','这个专题的全部题目已经完成。')}</p>
+    <div class="grammar-result-actions"><button class="primary" onclick="restartGrammarPractice(true)">${loc('Practice Again (Shuffled)','重新练习（随机顺序）')}</button><button class="secondary" onclick="showPage('mistakes')">${loc('Review Mistakes','查看错题')}</button></div></div>
+  </div>`;
+  updateStats();
+};
+
+window.restartGrammarPractice=function(shuffleOrder=true){resetGrammarPractice(shuffleOrder);renderGrammar();};
 let activePassage=READING_PASSAGES[0].id;function renderReading(){document.getElementById('readingTabs').innerHTML=READING_PASSAGES.map(p=>`<button class="${p.id===activePassage?'active':''}" onclick="activePassage='${p.id}';renderReading()">${p.title} • ${p.genre}</button>`).join('');const p=READING_PASSAGES.find(x=>x.id===activePassage);document.getElementById('readingWorkspace').innerHTML=`<article class="passage-card"><span class="tag">${p.genre}</span><span class="tag">Grade ${p.grade}</span><h3>${p.title}</h3><div class="passage-text">${p.text.split('\n\n').map(x=>`<p>${x}</p>`).join('')}</div>${p.questions.map((q,n)=>`<div class="question"><h4>${n+1}. ${loc(q.en,q.zh)}</h4>${q.options.map((o,i)=>`<button class="option" onclick="checkReading('${q.id}',${i},this)">${String.fromCharCode(65+i)}. ${o}</button>`).join('')}<div class="feedback" id="rfb-${q.id}"></div></div>`).join('')}</article>`;applyLang()}window.activePassage=activePassage;window.renderReading=renderReading;window.checkReading=(id,i,btn)=>{const q=getQ(id),card=btn.closest('.question');card.querySelectorAll('.option').forEach(b=>b.disabled=true);btn.classList.add(i===q.answer?'correct':'wrong');recordProgress(q,i===q.answer);if(i!==q.answer){card.querySelectorAll('.option')[q.answer].classList.add('correct');saveMistake(q,i)}document.getElementById('rfb-'+id).innerHTML=explain(q,i);updateStats()};
 function renderSet(container,questions,englishOnly=false){document.getElementById(container).innerHTML=questions.map((q,n)=>`<article class="question" data-qid="${q.id}"><span class="tag">${q.area}</span><h4>${n+1}. ${englishOnly?q.en:loc(q.en,q.zh)}</h4>${q.options.map((o,i)=>`<label><input type="radio" name="${container}-${q.id}" value="${i}"> ${String.fromCharCode(65+i)}. ${o}</label>`).join('')}<div class="feedback hidden"></div></article>`).join('');applyLang()}
 function submitSet(container,qs,englishOnly=false){
@@ -150,7 +417,38 @@ function submitSet(container,qs,englishOnly=false){
   renderWeakness();
   return {score,total:qs.length,percent:Math.round(score/qs.length*100)};
 }
-let vocabSet=[],writingSet=[];function renderVocab(){vocabSet=shuffle(VOCAB_QUESTIONS).slice(0,12);document.getElementById('vocabWorkspace').innerHTML=`<div class="practice-box"><div id="vocabSet"></div><button class="primary" onclick="submitVocab()">Check Answers / 提交答案</button><div id="vocabResult"></div></div>`;renderSet('vocabSet',vocabSet)}window.submitVocab=()=>{const r=submitSet('vocabSet',vocabSet);document.getElementById('vocabResult').innerHTML=`<div class="result"><h3>${r.score}/${r.total}</h3><p>${loc('Progress saved automatically.','进度已自动保存。')}</p><button class="secondary" onclick="renderVocab()">New Vocabulary Set / 换一组词汇题</button></div>`};function renderWriting(){writingSet=shuffle(WRITING_QUESTIONS).slice(0,12);document.getElementById('writingWorkspace').innerHTML=`<div class="practice-box"><div id="writingSet"></div><button class="primary" onclick="submitWriting()">Check Answers / 提交答案</button><div id="writingResult"></div></div>`;renderSet('writingSet',writingSet)}window.submitWriting=()=>{const r=submitSet('writingSet',writingSet);document.getElementById('writingResult').innerHTML=`<div class="result"><h3>${r.score}/${r.total}</h3><p>${loc('Progress saved automatically.','进度已自动保存。')}</p><button class="secondary" onclick="renderWriting()">New Writing Set / 换一组写作题</button></div>`};
+let vocabSet=[],writingSet=[];
+function renderVocab(){
+  vocabSet=shuffle(VOCAB_QUESTIONS).slice(0,Math.min(12,VOCAB_QUESTIONS.length));
+  document.getElementById('vocabWorkspace').innerHTML=`<div class="practice-box">
+    <h3>${loc('Mixed Quick Practice','综合快速练习')}</h3>
+    <p>${loc('This mixed set is separate from the skill buttons above. Click a skill above when you want to complete every question in that category.','这组是综合快速练习。要完成某个细分类的全部题目，请点击上方对应知识点。')}</p>
+    <div id="vocabSet"></div>
+    <button class="primary" onclick="submitVocab()">Check Answers / 提交答案</button>
+    <div id="vocabResult"></div>
+  </div>`;
+  renderSet('vocabSet',vocabSet);
+}
+window.submitVocab=()=>{
+  const r=submitSet('vocabSet',vocabSet);
+  document.getElementById('vocabResult').innerHTML=`<div class="result"><h3>${r.score}/${r.total}</h3><p>${loc('Progress saved automatically.','进度已自动保存。')}</p><button class="secondary" onclick="renderVocab()">New Mixed Set / 换一组综合题</button></div>`;
+};
+
+function renderWriting(){
+  writingSet=shuffle(WRITING_QUESTIONS).slice(0,Math.min(12,WRITING_QUESTIONS.length));
+  document.getElementById('writingWorkspace').innerHTML=`<div class="practice-box">
+    <h3>${loc('Mixed Quick Practice','综合快速练习')}</h3>
+    <p>${loc('This mixed set is separate from the skill buttons above. Click a skill above when you want to complete every question in that category.','这组是综合快速练习。要完成某个细分类的全部题目，请点击上方对应知识点。')}</p>
+    <div id="writingSet"></div>
+    <button class="primary" onclick="submitWriting()">Check Answers / 提交答案</button>
+    <div id="writingResult"></div>
+  </div>`;
+  renderSet('writingSet',writingSet);
+}
+window.submitWriting=()=>{
+  const r=submitSet('writingSet',writingSet);
+  document.getElementById('writingResult').innerHTML=`<div class="result"><h3>${r.score}/${r.total}</h3><p>${loc('Progress saved automatically.','进度已自动保存。')}</p><button class="secondary" onclick="renderWriting()">New Mixed Set / 换一组综合题</button></div>`;
+};
 function renderBank(){const counts={Reading:readingQs().length,Grammar:GRAMMAR_QUESTIONS.length,Vocabulary:VOCAB_QUESTIONS.length,Writing:WRITING_QUESTIONS.length};document.getElementById('bankSummary').innerHTML=Object.entries(counts).map(([k,v])=>`<article><strong>${v}</strong><span>${k}</span></article>`).join('');document.getElementById('bankArea').innerHTML='<option value="all">All / 全部</option><option value="reading">Reading</option><option value="grammar">Grammar</option><option value="vocabulary">Vocabulary</option><option value="writing">Writing</option>'}
 document.getElementById('startBank').onclick=()=>{let pool=allQs(),area=document.getElementById('bankArea').value,n=+document.getElementById('bankCount').value;if(area!=='all')pool=pool.filter(q=>q.area===area);state.bank=shuffle(pool).slice(0,n);document.getElementById('bankWorkspace').innerHTML='<div class="practice-box"><div id="bankSet"></div><button class="primary" onclick="submitBank()">Submit / 提交</button><div id="bankResult"></div></div>';renderSet('bankSet',state.bank)};window.submitBank=()=>{const r=submitSet('bankSet',state.bank);document.getElementById('bankResult').innerHTML=`<div class="result"><h3>${r.score}/${r.total} (${r.percent}%)</h3></div>`};
 function makeDiag(){state.diag=shuffle([...shuffle(readingQs()).slice(0,6),...shuffle(GRAMMAR_QUESTIONS).slice(0,8),...shuffle(VOCAB_QUESTIONS).slice(0,5),...shuffle(WRITING_QUESTIONS).slice(0,5)]);document.getElementById('diagId').textContent='D-'+Math.floor(1000+Math.random()*9000);renderSet('diagWorkspace',state.diag);document.getElementById('diagAnswered').textContent='0 / 24';document.querySelectorAll('#diagWorkspace input').forEach(i=>i.onchange=()=>document.getElementById('diagAnswered').textContent=`${document.querySelectorAll('#diagWorkspace input:checked').length} / 24`);document.getElementById('diagResult').classList.add('hidden')}document.getElementById('newDiag').onclick=makeDiag;document.getElementById('submitDiag').onclick=()=>{const r=submitSet('diagWorkspace',state.diag);state.history.push({type:'diagnostic',date:new Date().toISOString(),percent:r.percent});localStorage.setItem('ela-history',JSON.stringify(state.history));const b=document.getElementById('diagResult');b.classList.remove('hidden');b.innerHTML=`<h3>${r.score}/${r.total} (${r.percent}%)</h3><p>${r.percent>=85?loc('Strong foundation. Review only the missed areas.','基础较稳，重点复习错题。'):loc('Open the Mistake Book and Weak Areas next.','下一步打开错题本和薄弱点分析。')}</p>`;updateStats()};
