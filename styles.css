@@ -52,3 +52,15 @@
 .result-actions{display:flex;gap:9px;flex-wrap:wrap}
 .dark .focused-passage{background:#292c38}.dark .focused-counter{background:#2e3048}.dark .topic-complete .score-circle{background:#2c2f45}
 @media(max-width:620px){.focused-head{flex-direction:column}.focused-counter{width:100%;height:auto;padding:10px}.topic-complete{flex-direction:column;text-align:center}}
+
+.selected-analysis{margin:9px 0;padding:13px;border-radius:11px;background:#fff5ea;border-left:4px solid #e59a2f;line-height:1.6}
+.evidence-box{margin:9px 0;padding:13px;border-radius:11px;background:#eef6ff;border-left:4px solid #4889d8;line-height:1.6}
+.option-analysis{margin-top:12px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel)}
+.option-analysis summary{cursor:pointer;padding:12px 14px;font-weight:800;background:#f5f6fb}
+.option-explain{padding:11px 14px;border-top:1px solid var(--line);display:grid;gap:4px}
+.option-explain b{font-size:13px}.option-explain span{color:var(--muted);line-height:1.55}
+.option-explain.is-correct-option{border-left:4px solid var(--good);background:#f0fbf5}
+.option-explain.is-your-option:not(.is-correct-option){border-left:4px solid var(--bad);background:#fff5f5}
+.dark .selected-analysis{background:#3a3026}.dark .evidence-box{background:#263445}
+.dark .option-analysis summary{background:#2b2f3d}.dark .option-explain.is-correct-option{background:#24372f}
+.dark .option-explain.is-your-option:not(.is-correct-option){background:#3a292d}
