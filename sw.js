@@ -1,9 +1,9 @@
-const CACHE='g7-ela-prep-v2-fixed';
+const CACHE='g7-ela-prep-v3-complete';
 self.addEventListener('install',event=>{
   self.skipWaiting();
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll([
-    './','./index.html','./styles.css?v=2','./app.js?v=2',
-    './data/question-bank.js?v=2','./data/reading-passages.js?v=2'
+    './','./index.html','./styles.css?v=3','./app.js?v=3',
+    './data/question-bank.js?v=3','./data/reading-passages.js?v=3'
   ])).catch(()=>{}));
 });
 self.addEventListener('activate',event=>{
